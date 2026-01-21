@@ -1,0 +1,56 @@
+ # Ignore visual studio files
+*.vcxproj.user
+*.pch
+*.sdf
+*ipch/
+.vs/
+CMakeSettings.json
+
+# Ignore built files
+build/
+darwin/
+dist/
+*.Intermediate/
+*.pdb
+*.exp
+*.obj
+*.cod
+
+# Ignore Node Files
+node_modules/
+app/node
+
+# Ignore Ghost Temp Files
+*ghost.conf
+logs/
+Cutting Code/
+
+# Ignore OS Files
+*.DS_Store
+thumbs.db
+
+# Ignore dll files
+
+
+.idea
+.vscode
+cmake-build*
+*.a
+*.kdev4
+
+UI/app/app.js
+UI/app/index.js
+UI/app/Backend/*.so*
+UI/app/Backend/*.lib
+UI/app/Backend/ddcut.node
+UI/app/Backend/DDCUT_TEST.exe
+UI/app/Backend/DDCUT_TEST
+UI/app/Backend/example.exe
+UI/app/Backend/minigzip.exe
+UI/app/Backend/zlib.dll
+UI/app/Backend/DDUtil
+UI/app/Backend/Tests
+UI/app/Backend/*.exe
+
+# Claude Code configuration
+.claude
