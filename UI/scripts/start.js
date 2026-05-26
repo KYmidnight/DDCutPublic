@@ -25,7 +25,7 @@ const watching = compiler.watch({}, (err, stats) => {
     electronStarted = true;
 
     childProcess
-      .spawn(electron, ["."], { stdio: "inherit" })
+      .spawn(electron, [".", "--force-device-scale-factor=0.8"], { stdio: "inherit" })
       .on("close", () => {
         watching.close();
       });
