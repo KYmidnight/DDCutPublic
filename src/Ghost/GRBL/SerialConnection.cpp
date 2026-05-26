@@ -1,4 +1,6 @@
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include "SerialConnection.h"
+#include <functional>
 #include <Common/Defs.h>
 #include <Common/Logger.h>
 #include "Ghost/Display/GhostDisplayManager.h"
@@ -31,7 +33,7 @@ struct SerialConnection::Imp
 		std::lock_guard lock{m_mutex};
 		Disconnect();
 		m_context = std::make_unique<boost::asio::io_context>();
-		m_work = std::make_unique<boost::asio::io_context::work>(*m_context);
+		m_work = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(m_context->get_executor());
 		m_ioThread = std::thread([this](){ m_context->run(); });
 
 		try {
@@ -171,7 +173,7 @@ private:
 	mutable std::recursive_mutex m_mutex;
 	mutable std::mutex m_queueMutex;
 	mutable std::queue<char> m_queue;
-	std::unique_ptr<boost::asio::io_context::work> m_work;
+	std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> m_work;
 	std::shared_ptr<ConnectionState> m_pState;
 	std::string m_readBuffer;
 	std::thread m_ioThread;
@@ -179,14 +181,14 @@ private:
 	bool m_showStatus;
 
 	void get_next_byte() noexcept {
-		if (m_port && m_work) {
+		if (m_port && m_work != nullptr) {
 			m_port->async_read_some(
 				boost::asio::buffer(&m_nextByte, sizeof(m_nextByte)),
-				boost::bind(
+				std::bind(
 					&Imp::read_cb,
 					this,
-					boost::asio::placeholders::error,
-					boost::asio::placeholders::bytes_transferred)
+					std::placeholders::_1,
+					std::placeholders::_2)
 			);
 		}
 	}

@@ -53,4 +53,4 @@ UI/app/Backend/Tests
 UI/app/Backend/*.exe
 
 # Claude Code configuration
-.claude
+.claudevcpkg/

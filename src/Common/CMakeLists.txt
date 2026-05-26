@@ -29,5 +29,5 @@ set(
 
 add_library(ddcut-common OBJECT ${cxx-sources} ${cxx-headers})
 set_property(TARGET ddcut-common PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(ddcut-common PUBLIC jsoncpp_lib)
-target_link_libraries(ddcut-common PRIVATE spdlog::spdlog_header_only Boost::headers)
+target_link_libraries(ddcut-common PUBLIC JsonCpp::JsonCpp)
+target_link_libraries(ddcut-common PRIVATE spdlog::spdlog Boost::headers)

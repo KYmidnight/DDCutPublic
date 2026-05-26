@@ -28,19 +28,17 @@ void FileDownloader::DownloadFile(const URL& url, const fs::path& outFilePath)
 void FileDownloader::GetFile(const std::string& serverName, const std::string& getCommand, std::ofstream& outFile)
 {
 	boost::system::error_code errorCode;
-	asio::io_service ioService;
+	asio::io_context ioContext;
 	asio::ssl::context ctx(asio::ssl::context::sslv23);
 	ctx.set_default_verify_paths();
-	asio::ssl::stream<asio::ip::tcp::socket> socket(ioService, ctx);
+	asio::ssl::stream<asio::ip::tcp::socket> socket(ioContext, ctx);
 
 	// Get a list of endpoints corresponding to the server name.
-	tcp::resolver resolver(ioService);
-	tcp::resolver::query query(serverName, "https");
-	tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-	tcp::resolver::iterator end;
+	tcp::resolver resolver(ioContext);
+	auto endpoints = resolver.resolve(serverName, "https");
 
 	socket.set_verify_mode(asio::ssl::verify_none);
-	asio::connect(socket.lowest_layer(), endpoint_iterator, errorCode);
+	asio::connect(socket.lowest_layer(), endpoints, errorCode);
 
 	socket.handshake(asio::ssl::stream_base::client, errorCode);
 

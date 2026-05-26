@@ -12,4 +12,4 @@ set(
 add_library(ddcut-settings OBJECT ${cxx-sources} ${cxx-headers})
 set_property(TARGET ddcut-settings PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_compile_definitions(ddcut-settings PRIVATE REST_CLIENT)
-target_link_libraries(ddcut-settings PUBLIC jsoncpp_lib)
+target_link_libraries(ddcut-settings PUBLIC JsonCpp::JsonCpp)
