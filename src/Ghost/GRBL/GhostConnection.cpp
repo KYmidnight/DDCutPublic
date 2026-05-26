@@ -82,9 +82,13 @@ void GhostConnection::Connect() {
     m_pState->SetConnected(true);
     m_pState->SetStartup(true);
 
+    // Send soft reset (Ctrl+X = 0x18) to trigger Grbl startup banner
+    m_pSerialConnection->WriteChar(24, 500);
     m_pSerialConnection->FlushReads();
 
     bool started = false;
+    int timeoutCount = 0;
+    const int maxTimeouts = 3; // After 3 timeouts without Grbl banner, assume controller is already running
 
     // Wait for startup
     while (true) {
@@ -107,7 +111,25 @@ void GhostConnection::Connect() {
         }
 
         if (state.IsTimedOut()) {
-            MILL_LOG("Connection timeout");
+            timeoutCount++;
+            MILL_LOG("Connection timeout (count: " + std::to_string(timeoutCount) + ")");
+            
+            if (timeoutCount >= maxTimeouts && !started) {
+                // Controller is responding with status reports but no Grbl banner.
+                // This happens with DDCut firmware that's already running (e.g., in Alarm state).
+                // Treat as connected with default version.
+                MILL_LOG("No Grbl banner received after " + std::to_string(timeoutCount) + " timeouts. Assuming controller is already running.");
+                m_protocol.SetVersion("1.1");
+                m_pState->SetStartup(false);
+                started = true;
+                
+                // Send unlock to clear Alarm state
+                MILL_LOG("Sending $X to unlock controller");
+                m_pSerialConnection->WriteLine("$X", 1000);
+                m_pSerialConnection->FlushReads();
+                break;
+            }
+            
             if (!Reset(false)) {
                 throw GhostException(GhostException::ESTOP_PUSHED);
             }
