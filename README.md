@@ -8,20 +8,26 @@
 
 ## Quick Start (Linux)
 
+### Automated Build (Recommended)
+
 ```bash
-# Clone the Linux-modified version
-git clone -b linux-modern-boost https://github.com/KYmidnight/DDCutPublic.git
+# Clone with submodules
+git clone --recurse-submodules -b linux-modern-boost https://github.com/KYmidnight/DDCutPublic.git
 cd DDCutPublic
 
-# Build (see BUILD_LINUX.md for detailed instructions)
-mkdir build && cd build
-cmake ..
-make
+# Run the automated build script
+./build_linux.sh
 
-# Connect to GhostGunner
-# Ensure user is in dialout group: sudo usermod -a -G dialout $USER
-# Then logout/login for group membership to take effect
+# Log out and back in (required for dialout group)
+# Then connect your GhostGunner and run:
+source ~/.nvm/nvm.sh
+cd UI
+DISPLAY=:0 node scripts/start.js
 ```
+
+### Manual Build
+
+See `BUILD_LINUX.md` for step-by-step instructions.
 
 ## What Was Fixed
 
@@ -78,6 +84,34 @@ make
 - **Solution:** `sudo chown root chrome-sandbox && sudo chmod 4755 chrome-sandbox`
 - **Files:** `UI/node_modules/electron/dist/chrome-sandbox`
 
+## Build Script (`build_linux.sh`)
+
+The included `build_linux.sh` script automates the entire build process:
+
+**What it does:**
+1. Installs system dependencies (build-essential, cmake, libusb, etc.)
+2. Sets up Node.js 10.11.0 via nvm (required for Electron)
+3. Upgrades vcpkg to latest (critical for Boost 1.91 compatibility)
+4. Builds tiny-process-library with `-fPIC`
+5. Compiles the DDCut C++ addon
+6. Installs Electron frontend and sets up sandbox permissions
+7. Adds user to dialout group
+
+**Requirements:**
+- Ubuntu 26.04+ (tested)
+- Internet connection (downloads Node.js, vcpkg, dependencies)
+- Sudo access (for group modifications and package installation)
+
+**Usage:**
+```bash
+./build_linux.sh
+```
+
+After completion:
+1. **Log out and back in** (required for dialout group to take effect)
+2. Connect your GhostGunner
+3. Run: `source ~/.nvm/nvm.sh && cd UI && DISPLAY=:0 node scripts/start.js`
+
 ## Hardware Compatibility
 
 - **Controller:** Arduino Uno (vendor 2341, product 0043)
@@ -99,11 +133,13 @@ make
 - `Shutdown()` can segfault — **secondary issue, doesn't affect normal operation**
 - `SelectGhostGunner()` returns false initially (async, needs ~5s to complete) — **expected behavior**
 - User must logout/login for permanent dialout group membership
+- **Connection timing:** If "Connecting" takes ~5 seconds, that's normal (firmware in Alarm state handling)
 
 ## Documentation
 
 - **Original BUILD.md:** Still applies, but see `BUILD_LINUX.md` for Linux-specific instructions
 - **BUILD_LINUX.md:** Detailed Linux build guide (new file)
+- **build_linux.sh:** Automated build script (recommended)
 - **Original docs:** `docs/` folder (Windows-focused)
 
 ## Credits
