@@ -9,7 +9,7 @@ DDCut is cross-platform software for the Ghost Gunner CNC mill by Defense Distri
 git clone --recurse-submodules https://github.com/KYmidnight/DDCutPublic.git
 cd DDCutPublic
 
-# Build (installs deps, builds C++ addon + tcmalloc shim, installs npm packages)
+# Build (installs deps, builds C++ addon + tcmalloc shim, webpack bundle, npm packages)
 bash build_linux.sh
 
 # Run
@@ -24,14 +24,14 @@ Electron 5 statically links Google's tcmalloc, which overrides `malloc`/`free`/`
 
 The fix has two parts:
 
-1. **`tcmalloc_shim.so` (LD_PRELOAD)** — Redirects `aligned_alloc()` and `posix_memalign()` through tcmalloc's own `memalign()`, which allocates from the same pool that `free()` deallocates from. This is the critical fix for running under Electron.
+1. **`tcmalloc_shim.so` (LD_PRELOAD)** — Redirects `aligned_alloc()` and `posix_memalign()` through tcmalloc's own `memalign()`, which allocates from the same pool that `free()` deallocates from. **Required for Electron.**
 2. **CMake flags** (`-DBOOST_ASIO_HAS_STD_ALIGNED_ALLOC=0 -DBOOST_ASIO_HAS_BOOST_ALIGN=0`) — Forces Boost.Asio to use `::operator new`/`::operator delete` instead of `std::aligned_alloc`/`std::free`. Helps for standalone Node runs and reduces the mismatch surface.
 
-The shim source is at [`UI/lib/src/tcmalloc_shim.c`](UI/lib/src/tcmalloc_shim.c).
+The shim source is at [`UI/lib/src/tcmalloc_shim.c`](UI/lib/src/tcmalloc_shim.c) with full documentation.
 
 ## Build from Source (Linux)
 
-For detailed build instructions, see [docs/BUILD.md](docs/BUILD.md).
+For detailed step-by-step instructions, see [docs/BUILD.md](docs/BUILD.md).
 
 ### Prerequisites
 
@@ -47,11 +47,11 @@ For detailed build instructions, see [docs/BUILD.md](docs/BUILD.md).
 git clone --recurse-submodules https://github.com/KYmidnight/DDCutPublic.git
 cd DDCutPublic
 
-# 2. Build the tcmalloc shim
+# 2. Build the tcmalloc shim (REQUIRED)
 cd UI/lib && gcc -shared -fPIC -o tcmalloc_shim.so src/tcmalloc_shim.c -ldl && cd ../..
 
-# 3. Install vcpkg dependencies (or run vcpkg manually — see build_linux.sh)
-#    The build_linux.sh script handles this automatically
+# 3. Install vcpkg dependencies (see build_linux.sh or docs/BUILD.md for details)
+#    This requires upgrading the vcpkg submodule and installing Boost 1.91+
 
 # 4. Build the C++ addon
 mkdir build && cd build
@@ -60,12 +60,16 @@ cmake -DVCPKG_TARGET_TRIPLET=x64-linux \
       ../src
 cmake --build . --config Release
 cp RelWithDebInfo/ddcut.node ../UI/app/Backend/ddcut.node
+cd ..
 
-# 5. Install Electron frontend
-cd ../UI && npm install --ignore-scripts
+# 5. Install Electron frontend and build webpack bundle
+cd UI
+npm install --ignore-scripts
+npx webpack --config=scripts/webpack.app.config.js --env=production --app=ddcut
 
 # 6. Run
-LD_PRELOAD=$(pwd)/lib/tcmalloc_shim.so DISPLAY=:0 node_modules/electron/dist/electron --no-sandbox .
+cd ..  # back to DDCutPublic root
+bash launch_ddcut.sh
 ```
 
 ## Design
@@ -86,8 +90,20 @@ DDCut2 is a C++ daemon that communicates via USB with Ghost Gunner CNC mills. It
 | Deadlock on disconnect | `Disconnect()` holds mutex while joining io thread | Unlock mutex before join, destroy port first |
 | Segfault on async read after disconnect | `read_cb` re-arms `async_read_some` on destroyed port | Null-check `m_port` and `m_work` before re-arming |
 | Grbl banner timeout (no connection) | Controller won't re-send banner if already running | Send soft reset (0x18), retry 3 times, then assume running |
-| Build failure with GCC 15+ | Boost 1.72 incompatibility, deprecated `io_service` API | Modern vcpkg, ported to `io_context`, modern `resolve()` API |
-| CMake target errors | Old vcpkg target names (`jsoncpp_lib`, `minizip::minizip`) | Updated to `JsonCpp::JsonCpp`, `unofficial::minizip::minizip` |
+| Build failure with GCC 13+/15+ | Boost 1.72 incompatibility, deprecated `io_service` API | Modern vcpkg (1.91+), ported to `io_context`, modern `resolve()` |
+| CMake target errors with modern vcpkg | Target names changed (`jsoncpp_lib` → `JsonCpp::JsonCpp`) | Updated CMakeLists.txt throughout |
+
+## File Overview
+
+| File | Purpose |
+|------|---------|
+| `build_linux.sh` | One-command build script (deps, vcpkg, shim, addon, webpack, npm) |
+| `launch_ddcut.sh` | Run script with LD_PRELOAD and nvm setup |
+| `UI/lib/src/tcmalloc_shim.c` | LD_PRELOAD shim source (fixes Electron/tcmalloc crash) |
+| `src/CMakeLists.txt` | Build config with Boost flags and modern vcpkg targets |
+| `src/Ghost/GRBL/SerialConnection.cpp` | Serial connection with deadlock/use-after-free fixes |
+| `src/Ghost/GhostConnector.cpp` | Thread-safe cleanup for Electron/tcmalloc |
+| `src/Ghost/GRBL/GhostConnection.cpp` | Grbl banner timeout handling |
 
 ## License
 
