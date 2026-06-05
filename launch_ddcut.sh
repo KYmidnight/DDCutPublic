@@ -25,4 +25,11 @@ export DISPLAY="${DISPLAY:-:0}"
 
 cd "$SCRIPT_DIR/UI"
 
-exec node_modules/electron/dist/electron --no-sandbox "$@"
+# Pre-built UI bundle must exist
+if [ ! -f app/index.js ]; then
+    echo "ERROR: app/index.js not found. Run the webpack build first:"
+    echo "  cd UI && npx webpack --config=scripts/webpack.app.config.js --env=production --app=ddcut"
+    exit 1
+fi
+
+exec node_modules/electron/dist/electron --no-sandbox .
