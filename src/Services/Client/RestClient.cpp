@@ -15,10 +15,10 @@ RestClient::Response RestClient::Get(const std::string& path)
 {
 	DD_LOG("Calling: " + path);
 
-	asio::io_service ioService;
+	asio::io_context ioContext;
 	asio::ssl::context ctx(asio::ssl::context::sslv23);
 	ctx.set_default_verify_paths();
-	asio::ssl::stream<asio::ip::tcp::socket> socket(ioService, ctx);
+	asio::ssl::stream<asio::ip::tcp::socket> socket(ioContext, ctx);
 
 	asio::streambuf request;
 	asio::streambuf response;
@@ -35,24 +35,21 @@ RestClient::Response RestClient::Get(const std::string& path)
 	requestStream << "Content-Length: 0\r\n";
 	requestStream << "Connection: close\r\n\r\n\r\n";
 
-	// Start a synchronous resolve to translate the server and service names
-	// into a list of endpoints.
-	asio::ip::tcp::resolver::query query(SERVER, "https");
+	// Modern Boost.Asio: resolve directly without query object
+	asio::ip::tcp::resolver resolver(ioContext);
+	auto res = resolver.resolve(SERVER, "https");
 
 	RestClient client(socket, request, response);
-
-	asio::ip::tcp::resolver resolver(ioService);
-	auto res = resolver.resolve(query);
 
 	return client.Resolve(res);
 }
 
 RestClient::Response RestClient::Post(const std::string& path, const std::string& jsonBody)
 {
-	asio::io_service ioService;
+	asio::io_context ioContext;
 	asio::ssl::context ctx(asio::ssl::context::sslv23);
 	ctx.set_default_verify_paths();
-	asio::ssl::stream<asio::ip::tcp::socket> socket(ioService, ctx);
+	asio::ssl::stream<asio::ip::tcp::socket> socket(ioContext, ctx);
 
 	asio::streambuf request;
 	asio::streambuf response;
@@ -70,25 +67,22 @@ RestClient::Response RestClient::Post(const std::string& path, const std::string
 	requestStream << "Connection: close\r\n\r\n";
 	requestStream << jsonBody << "\r\n";
 
-	// Start a synchronous resolve to translate the server and service names
-	// into a list of endpoints.
-	asio::ip::tcp::resolver::query query(SERVER, "https");
+	// Modern Boost.Asio: resolve directly without query object
+	asio::ip::tcp::resolver resolver(ioContext);
+	auto res = resolver.resolve(SERVER, "https");
 
 	RestClient client(socket, request, response);
-
-	asio::ip::tcp::resolver resolver(ioService);
-	auto res = resolver.resolve(query);
 
 	return client.Resolve(res);
 }
 
-RestClient::Response RestClient::Resolve(asio::ip::tcp::resolver::iterator endpoint_iterator)
+RestClient::Response RestClient::Resolve(asio::ip::tcp::resolver::results_type endpoints)
 {
 	std::cout << "Resolve OK" << "\n";
 	m_socket.set_verify_mode(asio::ssl::verify_none);
 
 	auto err = boost::system::error_code{};
-	asio::connect(m_socket.lowest_layer(), endpoint_iterator, err);
+	asio::connect(m_socket.lowest_layer(), endpoints, err);
 
 	if (err) {
 		return RestClient::Response{ 0, err.message(), "" };
@@ -114,7 +108,7 @@ RestClient::Response RestClient::Handshake()
 {
 	std::cout << "Handshake OK " << "\n";
 	std::cout << "Request: " << "\n";
-	const char* header = asio::buffer_cast<const char*>(m_request.data());
+	const char* header = static_cast<const char*>(m_request.data().data());
 	std::cout << header << "\n";
 
 	// The handshake was successful. Send the request.
@@ -147,7 +141,7 @@ RestClient::Response RestClient::WriteRequest()
 RestClient::Response RestClient::ReadStatusLine()
 {
 	std::cout << "Response: " << "\n";
-	const char* resp = asio::buffer_cast<const char*>(m_response.data());
+	const char* resp = static_cast<const char*>(m_response.data().data());
 	std::cout << resp << "\n";
 
 	// Check that response is OK.

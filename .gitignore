@@ -54,3 +54,12 @@ UI/app/Backend/*.exe
 
 # Claude Code configuration
 .claude
+# Build artifacts
+*.bak
+src/CMakeLists.txt.bak
+
+# Shim compiled binary (rebuild from src)
+UI/lib/tcmalloc_shim.so
+
+# VCPKG installed packages (rebuilt by build script)
+vcpkg/installed/

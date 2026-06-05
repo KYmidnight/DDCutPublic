@@ -21,7 +21,7 @@ public:
 private:
 	RestClient(asio::ssl::stream<asio::ip::tcp::socket>& socket, asio::streambuf& request, asio::streambuf& response);
 
-	Response Resolve(asio::ip::tcp::resolver::iterator endpoint_iterator);
+	Response Resolve(asio::ip::tcp::resolver::results_type endpoints);
 	Response Connect();
 	Response Handshake();
 	Response WriteRequest();

@@ -16,4 +16,4 @@ set(
 add_library(ddcut-services OBJECT ${cxx-sources} ${cxx-headers})
 set_property(TARGET ddcut-services PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_compile_definitions(ddcut-services PRIVATE REST_CLIENT DDCUT_AUTH_KEY="${DDCUT_AUTH_KEY}")
-target_link_libraries(ddcut-services OpenSSL::Crypto OpenSSL::SSL Boost::headers jsoncpp_lib ddcut-common ddcut-firmware)
+target_link_libraries(ddcut-services OpenSSL::Crypto OpenSSL::SSL Boost::headers JsonCpp::JsonCpp ddcut-common ddcut-firmware)

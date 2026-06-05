@@ -24,4 +24,4 @@ set(
 )
 add_library(ddcut-files OBJECT ${cxx-sources} ${cxx-headers})
 set_property(TARGET ddcut-files PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(ddcut-files PUBLIC minizip::minizip ZLIB::ZLIB Boost::filesystem)
+target_link_libraries(ddcut-files PUBLIC ${MINIZIP_LINK_LIBRARIES} ZLIB::ZLIB Boost::filesystem)

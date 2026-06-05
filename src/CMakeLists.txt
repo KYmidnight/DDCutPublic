@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.12.4)
+cmake_policy(SET CMP0167 NEW)
 set(CMAKE_OSX_DEPLOYMENT_TARGET
     "10.12"
     CACHE STRING "Minimum OS X deployment version")
@@ -28,7 +29,7 @@ else(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS
         "${CMAKE_EXE_LINKER_FLAGS} -framework CoreFoundation -framework IOKit")
   else(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -DBOOST_ASIO_HAS_STD_ALIGNED_ALLOC=0 -DBOOST_ASIO_HAS_BOOST_ALIGN=0")
   endif(APPLE)
 endif(WIN32)
 
@@ -53,21 +54,20 @@ if(NOT APPLE)
 endif(NOT APPLE)
 
 find_package(jsoncpp CONFIG REQUIRED)
-get_target_property(jsoncpp_LIBRARIES jsoncpp_lib 
-                    IMPORTED_LOCATION_${IMPORT_BUILD_TYPE})
-find_package(minizip CONFIG REQUIRED)
-get_target_property(minizip_LIBRARIES minizip::minizip
-                    IMPORTED_LOCATION_${IMPORT_BUILD_TYPE})
+# jsoncpp: use jsoncpp_static (modern vcpkg) or jsoncpp_lib (legacy)
+if(TARGET jsoncpp_static)
+  set(jsoncpp_LIBRARIES jsoncpp_static)
+elseif(TARGET jsoncpp_lib)
+  set(jsoncpp_LIBRARIES jsoncpp_lib)
+endif()
+find_package(unofficial-minizip CONFIG REQUIRED)
+set(minizip_LIBRARIES unofficial::minizip::minizip)
 find_package(OpenSSL REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
-get_target_property(spdlog_LIBRARIES spdlog::spdlog
-                    IMPORTED_LOCATION_${IMPORT_BUILD_TYPE})
+set(spdlog_LIBRARIES spdlog::spdlog)
 find_package(Threads REQUIRED)
 find_package(unofficial-tiny-process-library CONFIG REQUIRED)
-get_target_property(
-  tinyprocesslibrary_LIBRARIES
-  unofficial::tiny-process-library::tiny-process-library
-  IMPORTED_LOCATION_${IMPORT_BUILD_TYPE})
+set(tinyprocesslibrary_LIBRARIES unofficial::tiny-process-library::tiny-process-library)
 find_package(ZLIB REQUIRED)
 
 include(NodeJS)
@@ -80,6 +80,7 @@ if(WIN32)
 endif()
 
 include_directories(
+  ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
   ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/deps/ghc/include
   ${CMAKE_CURRENT_SOURCE_DIR}/deps/optional/include)
 
@@ -95,14 +96,8 @@ add_subdirectory(Settings)
 if(WIN32)
   set(DDCUT_SRC "")
 else(WIN32)
-  set(DDCUT_SRC
-      "${jsoncpp_LIBRARIES}"
-      "${minizip_LIBRARIES}"
-      "${OPENSSL_CRYPTO_LIBRARY}"
-      "${OPENSSL_SSL_LIBRARY}"
-      "${tinyprocesslibrary_LIBRARIES}"
-      "${ZLIB_LIBRARIES}"
-      "${spdlog_LIBRARIES}")
+  # Modern vcpkg: use target_link_libraries instead of source-file linking
+  set(DDCUT_SRC "")
 endif(WIN32)
 
 list(
@@ -123,10 +118,10 @@ add_library(DDCutDaemon STATIC ${DDCUT_SRC})
 set_property(TARGET DDCutDaemon PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(
   DDCutDaemon
-  INTERFACE jsoncpp_lib
-  PRIVATE jsoncpp_lib
+  INTERFACE JsonCpp::JsonCpp
+  PRIVATE JsonCpp::JsonCpp
           ZLIB::ZLIB
-          minizip::minizip
+          ${minizip_LIBRARIES}
           unofficial::tiny-process-library::tiny-process-library
           OpenSSL::Crypto
           OpenSSL::SSL

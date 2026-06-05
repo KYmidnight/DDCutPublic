@@ -1,4 +1,6 @@
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include "SerialConnection.h"
+#include <functional>
 #include <Common/Defs.h>
 #include <Common/Logger.h>
 #include "Ghost/Display/GhostDisplayManager.h"
@@ -31,7 +33,7 @@ struct SerialConnection::Imp
 		std::lock_guard lock{m_mutex};
 		Disconnect();
 		m_context = std::make_unique<boost::asio::io_context>();
-		m_work = std::make_unique<boost::asio::io_context::work>(*m_context);
+		m_work = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(m_context->get_executor());
 		m_ioThread = std::thread([this](){ m_context->run(); });
 
 		try {
@@ -59,21 +61,30 @@ struct SerialConnection::Imp
 	}
 
 	void Disconnect() {
-		std::lock_guard lock{m_mutex};
-		m_work.reset();
+		// Step 1: Signal the io_context to stop by releasing the work guard.
+		// Destroy the port first to prevent read_cb from firing on deleted port.
+		// Do NOT hold m_mutex while joining the io thread (deadlock risk).
+		{
+			std::lock_guard lock{m_mutex};
+			m_work.reset();
+			m_port.reset();  // Destroy port before joining thread
+		}
 
+		// Step 2: Stop the io_context and join the thread WITHOUT holding m_mutex.
 		if (m_context) {
 			m_context->stop();
-
+			// Yield CPU instead of busy-spin
 			while (false == m_context->stopped()) {
-				;
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 		}
 
 		if (m_ioThread.joinable()) { m_ioThread.join(); }
 
-		m_port.reset();
-		m_context.reset();
+		{
+			std::lock_guard lock{m_mutex};
+			m_context.reset();
+		}
 	}
 
 	void WriteChar(const char val, const int timeout) {
@@ -171,7 +182,7 @@ private:
 	mutable std::recursive_mutex m_mutex;
 	mutable std::mutex m_queueMutex;
 	mutable std::queue<char> m_queue;
-	std::unique_ptr<boost::asio::io_context::work> m_work;
+	std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> m_work;
 	std::shared_ptr<ConnectionState> m_pState;
 	std::string m_readBuffer;
 	std::thread m_ioThread;
@@ -179,14 +190,14 @@ private:
 	bool m_showStatus;
 
 	void get_next_byte() noexcept {
-		if (m_port && m_work) {
+		if (m_port && m_work != nullptr) {
 			m_port->async_read_some(
 				boost::asio::buffer(&m_nextByte, sizeof(m_nextByte)),
-				boost::bind(
+				std::bind(
 					&Imp::read_cb,
 					this,
-					boost::asio::placeholders::error,
-					boost::asio::placeholders::bytes_transferred)
+					std::placeholders::_1,
+					std::placeholders::_2)
 			);
 		}
 	}
@@ -227,7 +238,11 @@ private:
 			m_queue.push(m_nextByte);
 		}
 
-		get_next_byte();
+		// Only re-arm the async read if the port is still alive.
+		// After Disconnect(), m_port is reset, so we must not call async_read_some.
+		if (m_port && m_work != nullptr) {
+			get_next_byte();
+		}
 	}
 };
 

@@ -1,0 +1,21 @@
+#!/bin/bash
+# DDCut launch script for Linux
+# The LD_PRELOAD shim is REQUIRED — without it, Electron's tcmalloc crashes ddcut
+# with 'Attempt to free invalid pointer' due to aligned allocator mismatch.
+# See: UI/lib/src/tcmalloc_shim.c for details.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SHIM="$SCRIPT_DIR/UI/lib/tcmalloc_shim.so"
+
+if [ ! -f "$SHIM" ]; then
+    echo "ERROR: tcmalloc_shim.so not found at $SHIM"
+    echo "Run build_linux.sh to build it, or: cd UI/lib && gcc -shared -fPIC -o tcmalloc_shim.so src/tcmalloc_shim.c -ldl"
+    exit 1
+fi
+
+export LD_PRELOAD="$SHIM"
+export DISPLAY="${DISPLAY:-:0}"
+
+cd "$SCRIPT_DIR/UI"
+
+exec node_modules/electron/dist/electron --no-sandbox "$@"

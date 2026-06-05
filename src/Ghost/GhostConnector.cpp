@@ -31,6 +31,10 @@ GhostConnector::~GhostConnector()
 		DD_LOG("Exception thrown.");
 	}
 
+	// Explicitly release connection before thread exits
+	// to avoid tcmalloc/glibc allocator mismatch
+	m_pGhost.reset();
+
 	DD_LOG_SYNC("GhostConnector stopped.");
 }
 
@@ -92,7 +96,9 @@ void GhostConnector::CheckUnplugged()
 
 	m_status = notConnected;
 	m_pGhost->Disconnect();
-	m_pGhost = nullptr;
+	// Explicitly release within addon thread context to avoid
+	// tcmalloc/glibc allocator mismatch crash
+	m_pGhost.reset();
 }
 
 bool GhostConnector::SetSelectedGhostGunner(const GhostGunner& ghostGunner) noexcept
@@ -105,7 +111,11 @@ bool GhostConnector::SetSelectedGhostGunner(const GhostGunner& ghostGunner) noex
 				m_status = connecting;
 			}
 
-			m_pGhost = GhostConnection::Connect(ghostGunner);
+			// Use local variable first - ensures any partial connection object
+		// is fully constructed before assigning to shared_ptr member.
+		// This avoids partial cleanup on allocator mismatch with Electron's tcmalloc.
+		auto connection = GhostConnection::Connect(ghostGunner);
+		m_pGhost = connection;
 			m_status = connected;
 			DD_LOG_F("Selected Ghost Gunner: %s", ghostGunner.GetPath().c_str());
 			DDLogger::Flush();
@@ -122,6 +132,12 @@ bool GhostConnector::SetSelectedGhostGunner(const GhostGunner& ghostGunner) noex
 					new_status = connecting;
 				}
 			}
+
+			// Explicitly clean up any partial connection within the addon's thread.
+			// Without this, the shared_ptr destructor may run later in Electron's
+			// thread context which uses tcmalloc, causing 'Attempt to free invalid pointer'
+			// since this addon's objects were allocated with glibc malloc.
+			m_pGhost.reset();
 
 			m_status = new_status;
 		}
